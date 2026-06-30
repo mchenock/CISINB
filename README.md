@@ -10,9 +10,15 @@ Ce dépôt sera mis à jour en fonction de mes audits :)
 
 **Prerequisites:**  Node.js
 
+1. Copy git
+ `git clone https://github.com/mchenock/CISINB `
+ `cd CISINB `
 
-1. Install dependencies:
+2. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+4. Open Browser
+ ` http://localhost:3000 `
+
+
