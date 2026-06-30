@@ -1,0 +1,8 @@
+{
+  "name": "Remix: CIS MariaDB Audit Extractor",
+  "description": "Extracts and normalizes CIS PostgreSQL 15 audit controls into structured Excel, CSV, and JSON formats for automated security compliance analysis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

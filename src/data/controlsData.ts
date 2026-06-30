@@ -1,0 +1,719 @@
+export interface Control {
+  ControlId: string;
+  Titre: string;
+  Description: string;
+  Objectif: string;
+  Procédure: string;
+  ResultatAttendu: string;
+  Severite: "Critical" | "High" | "Medium" | "Low" | "";
+  Remediation: string;
+  ReferencePages: string;
+  Type: "configuration" | "processus" | "test" | "documentation" | "autre";
+  Categorie: "Base de données" | "Système/OS" | "Réseau" | "Identités et accès" | "Organisationnel" | "Applicatif" | "Audit" | "Autre";
+  Commandes: string;
+  Notes: string;
+}
+
+export interface ChecklistItem {
+  Page: string;
+  ControlId: string;
+  LigneChecklist: string;
+  Testable: "Y" | "N";
+}
+
+export interface CommandItem {
+  ControlId: string;
+  CommandeSQL: string;
+  CommandeShell: string;
+  Contexte: string;
+}
+
+export interface LogItem {
+  Step: string;
+  Message: string;
+  PageRange: string;
+  Notes: string;
+}
+
+export const controlsData: Control[] = [
+  {
+    ControlId: "1.1",
+    Titre: "Mises à jour logicielles et correctifs de sécurité",
+    Description: "Veiller à ce que l'instance de base de données exécute la version la plus stable et sécurisée de PostgreSQL 15.",
+    Objectif: "Limiter les vulnérabilités système connues en appliquant régulièrement les correctifs de sécurité du PGDG.",
+    Procédure: "Exécuter `SELECT version();` et comparer avec la dernière version mineure publiée par le PostgreSQL Global Development Group.",
+    ResultatAttendu: "Version installée identique ou supérieure à la dernière version mineure active (ex: >= 15.7).",
+    Severite: "Medium",
+    Remediation: "Mettre à jour l'instance PostgreSQL en installant les paquets mis à jour de l'OS ou en compilant la dernière version mineure.",
+    ReferencePages: "p.12-p.14",
+    Type: "processus",
+    Categorie: "Système/OS",
+    Commandes: "SELECT version();",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "1.2",
+    Titre: "Restreindre l'installation d'extensions non approuvées",
+    Description: "S'assurer que seules les extensions approuvées et validées par la politique de sécurité sont installées.",
+    Objectif: "Prévenir l'exécution de code binaire non contrôlé ou vulnérable au sein de la base de données.",
+    Procédure: "Lister les extensions installées avec `SELECT extname, extversion FROM pg_extension;` et vérifier la conformité avec la liste validée.",
+    ResultatAttendu: "Seules les extensions approuvées figurent dans la liste des extensions actives.",
+    Severite: "Medium",
+    Remediation: "Désinstaller les extensions non autorisées à l'aide de la commande `DROP EXTENSION <nom_extension>;`.",
+    ReferencePages: "p.15-p.16",
+    Type: "configuration",
+    Categorie: "Base de données",
+    Commandes: "SELECT extname, extversion FROM pg_extension;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "1.3",
+    Titre: "Retirer les fonctions PL/pgSQL et langages non approuvés",
+    Description: "Désactiver ou restreindre la création de fonctions dans des langages non sécurisés comme PL/Perlu ou PL/Pythonu.",
+    Objectif: "Éviter l'exécution de commandes système ou d'accès directs à l'OS par des utilisateurs non privilégiés.",
+    Procédure: "Vérifier la liste des langages disponibles via la requête : `SELECT lanname, lanpltrusted FROM pg_language;`",
+    ResultatAttendu: "Seuls les langages de confiance (lanpltrusted=true) comme plpgsql ou sql sont utilisables par le public.",
+    Severite: "Medium",
+    Remediation: "Supprimer les langages non approuvés avec : `DROP LANGUAGE <nom_langage>;`.",
+    ReferencePages: "p.17",
+    Type: "configuration",
+    Categorie: "Base de données",
+    Commandes: "SELECT lanname, lanpltrusted FROM pg_language;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "2.1",
+    Titre: "Permissions d'accès strictes sur le répertoire PGDATA",
+    Description: "S'assurer que le répertoire de données (PGDATA) est protégé contre toute lecture/écriture par des tiers.",
+    Objectif: "Empêcher le vol ou la corruption directe des fichiers physiques de la base de données par d'autres utilisateurs de l'OS.",
+    Procédure: "En ligne de commande shell, exécuter : `ls -ld $PGDATA` et vérifier les permissions.",
+    ResultatAttendu: "Les permissions doivent être strictes, typiquement rwx------ (0700) ou rwxr-x--- (0750) avec postgres comme propriétaire.",
+    Severite: "High",
+    Remediation: "Modifier les permissions via : `chmod 700 $PGDATA` ou `chmod 750 $PGDATA`.",
+    ReferencePages: "p.18-p.20",
+    Type: "configuration",
+    Categorie: "Système/OS",
+    Commandes: "ls -ld $PGDATA",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "2.2",
+    Titre: "Permissions d'accès strictes sur la clé privée SSL",
+    Description: "S'assurer que le fichier contenant la clé privée SSL est uniquement lisible par l'utilisateur du service.",
+    Objectif: "Prévenir l'accès ou l'usurpation de l'identité cryptographique du serveur de base de données.",
+    Procédure: "Exécuter `SHOW ssl_key_file;` pour localiser le fichier, puis en shell vérifier ses permissions avec `ls -l <chemin_clé>`.",
+    ResultatAttendu: "Le fichier de clé privée doit avoir les permissions rw------- (0600) avec postgres pour propriétaire.",
+    Severite: "High",
+    Remediation: "Restreindre l'accès au fichier clé : `chmod 600 /var/lib/postgresql/data/server.key` (adapter le chemin).",
+    ReferencePages: "p.21-p.22",
+    Type: "configuration",
+    Categorie: "Système/OS",
+    Commandes: "SHOW ssl_key_file; \n# Shell:\nls -l /var/lib/postgresql/data/server.key",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "3.1",
+    Titre: "Activer le collecteur de journaux (logging_collector)",
+    Description: "S'assurer que le paramètre `logging_collector` est activé dans la configuration de PostgreSQL.",
+    Objectif: "Garantir que tous les événements journalisés sont bien redirigés et écrits dans des fichiers de log physiquement sauvegardés.",
+    Procédure: "Exécuter la commande SQL : `SHOW logging_collector;`",
+    ResultatAttendu: "Le paramètre doit renvoyer la valeur exacte 'on'.",
+    Severite: "High",
+    Remediation: "Modifier le paramètre dans postgresql.conf : `logging_collector = on`, puis redémarrer le serveur.",
+    ReferencePages: "p.25-p.26",
+    Type: "configuration",
+    Categorie: "Base de données",
+    Commandes: "SHOW logging_collector;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "3.2",
+    Titre: "Configurer une destination de log appropriée (log_destination)",
+    Description: "S'assurer que les journaux sont envoyés vers des destinations fiables et structurées comme stderr ou syslog.",
+    Objectif: "Garantir que les logs de sécurité sont stockés de manière à pouvoir être analysés ou envoyés vers un SIEM.",
+    Procédure: "Exécuter la commande SQL : `SHOW log_destination;`",
+    ResultatAttendu: "La destination recommandée est stderr, csvlog, syslog ou une combinaison approuvée.",
+    Severite: "Medium",
+    Remediation: "Configurer via SQL : `ALTER SYSTEM SET log_destination = 'stderr';` et recharger la configuration.",
+    ReferencePages: "p.27-p.28",
+    Type: "configuration",
+    Categorie: "Base de données",
+    Commandes: "SHOW log_destination;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "3.3",
+    Titre: "Permissions d'accès sur les fichiers de log (log_file_mode)",
+    Description: "Restreindre le mode de création par défaut des fichiers de log de la base de données.",
+    Objectif: "Empêcher la fuite de données d'audit ou d'informations d'erreur sensibles vers des utilisateurs OS non privilégiés.",
+    Procédure: "Exécuter la commande SQL : `SHOW log_file_mode;`",
+    ResultatAttendu: "Le mode doit être configuré à 0600 (ou plus restrictif).",
+    Severite: "Medium",
+    Remediation: "Modifier la configuration : `ALTER SYSTEM SET log_file_mode = '0600';` suivi de `SELECT pg_reload_conf();`.",
+    ReferencePages: "p.29-p.30",
+    Type: "configuration",
+    Categorie: "Base de données",
+    Commandes: "SHOW log_file_mode;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "3.4",
+    Titre: "Niveau minimal de message dans les logs (log_min_messages)",
+    Description: "Définir le niveau de verbosité minimum des logs système de PostgreSQL.",
+    Objectif: "Avoir un historique suffisant pour identifier les dysfonctionnements du moteur sans inonder le disque.",
+    Procédure: "Exécuter la commande SQL : `SHOW log_min_messages;`",
+    ResultatAttendu: "La valeur recommandée est 'warning' ou plus verbeuse (comme 'notice' ou 'info').",
+    Severite: "Medium",
+    Remediation: "Ajuster le niveau : `ALTER SYSTEM SET log_min_messages = 'warning';` puis recharger.",
+    ReferencePages: "p.31-p.32",
+    Type: "configuration",
+    Categorie: "Base de données",
+    Commandes: "SHOW log_min_messages;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "3.5",
+    Titre: "Journaliser les requêtes provoquant des erreurs (log_min_error_statement)",
+    Description: "S'assurer que toute instruction SQL provoquant une erreur de niveau suffisant est consignée.",
+    Objectif: "Détecter les tentatives de requêtes suspectes ou les attaques par injection SQL en analysant les commandes en échec.",
+    Procédure: "Exécuter la commande SQL : `SHOW log_min_error_statement;`",
+    ResultatAttendu: "La valeur doit être configurée au minimum à 'error' (ou plus restrictif).",
+    Severite: "Medium",
+    Remediation: "Ajuster la configuration : `ALTER SYSTEM SET log_min_error_statement = 'error';` puis recharger.",
+    ReferencePages: "p.33-p.34",
+    Type: "configuration",
+    Categorie: "Base de données",
+    Commandes: "SHOW log_min_error_statement;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "3.6",
+    Titre: "Auditer l'exécution des requêtes lentes (log_min_duration_statement)",
+    Description: "Définir un seuil de journalisation pour les requêtes consommatrices.",
+    Objectif: "Empêcher la dégradation des performances du serveur et repérer des attaques DoS applicatives.",
+    Procédure: "Exécuter la commande SQL : `SHOW log_min_duration_statement;`",
+    ResultatAttendu: "Doit être positionné à une valeur pragmatique (ex: 1000 pour 1s) ou -1 (désactivé) si géré autrement, pour ne pas inonder les logs.",
+    Severite: "Medium",
+    Remediation: "Ajuster le seuil (ex : 2000 ms) : `ALTER SYSTEM SET log_min_duration_statement = 2000;` puis recharger.",
+    ReferencePages: "p.35-p.36",
+    Type: "configuration",
+    Categorie: "Base de données",
+    Commandes: "SHOW log_min_duration_statement;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "3.7",
+    Titre: "Configuration du préfixe des lignes de log (log_line_prefix)",
+    Description: "Ajouter des informations de contexte détaillées (horodatage, PID, utilisateur, base) au début de chaque ligne de log.",
+    Objectif: "Garantir la traçabilité en reliant précisément chaque instruction journalisée à son auteur et sa session.",
+    Procédure: "Exécuter la commande SQL : `SHOW log_line_prefix;`",
+    ResultatAttendu: "Le préfixe doit comporter au moins l'horodatage (%m), le PID (%p), l'utilisateur (%u) et la base de données (%d).",
+    Severite: "Medium",
+    Remediation: "Configurer le format recommandé : `ALTER SYSTEM SET log_line_prefix = '%m [%p] %q%u@%d ';` puis recharger.",
+    ReferencePages: "p.37-p.39",
+    Type: "configuration",
+    Categorie: "Base de données",
+    Commandes: "SHOW log_line_prefix;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "3.8",
+    Titre: "Journaliser les connexions réussies (log_connections)",
+    Description: "S'assurer de l'enregistrement systématique de chaque tentative de connexion réussie à la base.",
+    Objectif: "Auditer les accès autorisés et détecter d'éventuels comportements d'intrusion ou scans de comptes.",
+    Procédure: "Exécuter la commande SQL : `SHOW log_connections;`",
+    ResultatAttendu: "Le paramètre doit renvoyer la valeur exacte 'on'.",
+    Severite: "High",
+    Remediation: "Activer la trace : `ALTER SYSTEM SET log_connections = 'on';` puis recharger.",
+    ReferencePages: "p.40-p.41",
+    Type: "configuration",
+    Categorie: "Base de données",
+    Commandes: "SHOW log_connections;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "3.9",
+    Titre: "Journaliser les déconnexions (log_disconnections)",
+    Description: "Enregistrer l'événement de fin de session pour chaque utilisateur ainsi que la durée totale de connexion.",
+    Objectif: "Corréler les heures de connexion et déconnexion avec les journaux de trafic réseau pour les audits post-incident.",
+    Procédure: "Exécuter la commande SQL : `SHOW log_disconnections;`",
+    ResultatAttendu: "Le paramètre doit renvoyer la valeur exacte 'on'.",
+    Severite: "High",
+    Remediation: "Activer l'option : `ALTER SYSTEM SET log_disconnections = 'on';` puis recharger.",
+    ReferencePages: "p.42-p.43",
+    Type: "configuration",
+    Categorie: "Base de données",
+    Commandes: "SHOW log_disconnections;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "3.10",
+    Titre: "Désactiver la journalisation redondante de durée (log_duration)",
+    Description: "S'assurer que `log_duration` est désactivé au profit de `log_min_duration_statement`.",
+    Objectif: "Éviter la saturation de l'espace disque due à des logs redondants.",
+    Procédure: "Exécuter la commande SQL : `SHOW log_duration;`",
+    ResultatAttendu: "La valeur renvoyée doit être 'off'.",
+    Severite: "Low",
+    Remediation: "Désactiver le paramètre : `ALTER SYSTEM SET log_duration = 'off';` puis recharger la configuration.",
+    ReferencePages: "p.44-p.45",
+    Type: "configuration",
+    Categorie: "Base de données",
+    Commandes: "SHOW log_duration;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "3.11",
+    Titre: "Désactiver la résolution DNS inverse (log_hostname)",
+    Description: "Éviter de résoudre les noms d'hôtes IP de manière synchrone lors de la journalisation.",
+    Objectif: "Prévenir les délais de connexion et les dénis de service (DoS) liés à un dysfonctionnement de serveurs DNS.",
+    Procédure: "Exécuter la commande SQL : `SHOW log_hostname;`",
+    ResultatAttendu: "La valeur renvoyée doit être 'off'.",
+    Severite: "Low",
+    Remediation: "Désactiver l'option : `ALTER SYSTEM SET log_hostname = 'off';` puis recharger la configuration.",
+    ReferencePages: "p.46-p.47",
+    Type: "configuration",
+    Categorie: "Base de données",
+    Commandes: "SHOW log_hostname;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "3.12",
+    Titre: "Journaliser les attentes de verrous (log_lock_waits)",
+    Description: "Enregistrer un message de log lorsqu'un processus attend plus de `deadlock_timeout` pour obtenir un verrou.",
+    Objectif: "Détecter les goulots d'étranglement ou les tentatives de blocage délibéré de tables (DoS).",
+    Procédure: "Exécuter la commande SQL : `SHOW log_lock_waits;`",
+    ResultatAttendu: "La valeur renvoyée doit être 'on'.",
+    Severite: "Medium",
+    Remediation: "Activer le paramètre : `ALTER SYSTEM SET log_lock_waits = 'on';` puis recharger.",
+    ReferencePages: "p.48-p.49",
+    Type: "configuration",
+    Categorie: "Base de données",
+    Commandes: "SHOW log_lock_waits;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "3.13",
+    Titre: "Enregistrer les modifications structurelles SQL (log_statement)",
+    Description: "Configurer `log_statement` pour capturer au moins les requêtes d'altération de structures (ddl) ou de données (mod).",
+    Objectif: "Tracer toutes les modifications de schémas (CREATE/ALTER/DROP) effectuées par les utilisateurs de la base.",
+    Procédure: "Exécuter la commande SQL : `SHOW log_statement;`",
+    ResultatAttendu: "La valeur recommandée est 'ddl' ou 'mod' (voire 'all' pour un audit strict).",
+    Severite: "High",
+    Remediation: "Modifier le niveau : `ALTER SYSTEM SET log_statement = 'ddl';` puis recharger.",
+    ReferencePages: "p.50-p.51",
+    Type: "configuration",
+    Categorie: "Base de données",
+    Commandes: "SHOW log_statement;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "3.14",
+    Titre: "Configuration cohérente du fuseau horaire des logs (log_timezone)",
+    Description: "S'assurer que les horodatages dans les fichiers journaux utilisent un fuseau horaire unique et cohérent.",
+    Objectif: "Faciliter la corrélation temporelle des logs de bases de données avec d'autres serveurs ou pare-feux.",
+    Procédure: "Exécuter la commande SQL : `SHOW log_timezone;`",
+    ResultatAttendu: "La valeur doit être cohérente avec le fuseau organisationnel (UTC recommandé).",
+    Severite: "Medium",
+    Remediation: "Définir le fuseau horaire : `ALTER SYSTEM SET log_timezone = 'UTC';` puis recharger.",
+    ReferencePages: "p.52-p.53",
+    Type: "configuration",
+    Categorie: "Base de données",
+    Commandes: "SHOW log_timezone;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "4.1",
+    Titre: "Prohiber la méthode d'authentification 'trust' dans pg_hba.conf",
+    Description: "S'assurer qu'aucune connexion réseau ou locale n'est autorisée sans contrôle (méthode d'accès trust).",
+    Objectif: "Empêcher tout utilisateur d'accéder à la base de données sans fournir de mot de passe valide.",
+    Procédure: "Interroger la table de configuration : `SELECT * FROM pg_hba_file_rules WHERE auth_method = 'trust';`",
+    ResultatAttendu: "Aucune ligne ne doit être retournée.",
+    Severite: "Critical",
+    Remediation: "Éditer `pg_hba.conf` pour supprimer le mot clé `trust` et le remplacer par `scram-sha-256`, puis recharger.",
+    ReferencePages: "p.56-p.58",
+    Type: "configuration",
+    Categorie: "Identités et accès",
+    Commandes: "SELECT * FROM pg_hba_file_rules WHERE auth_method = 'trust';",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "4.2",
+    Titre: "Limiter le nombre d'utilisateurs dotés du rôle SUPERUSER",
+    Description: "Auditer et restreindre de manière stricte le rôle de superutilisateur (rolsuper).",
+    Objectif: "Limiter l'impact d'une compromission de compte, les superutilisateurs pouvant contourner toutes les sécurités.",
+    Procédure: "Exécuter la requête d'audit : `SELECT rolname FROM pg_roles WHERE rolsuper = true;`",
+    ResultatAttendu: "Seul l'utilisateur par défaut d'administration (ex : postgres) doit être listé.",
+    Severite: "Critical",
+    Remediation: "Retirer le droit superutilisateur aux rôles superflus : `ALTER ROLE <nom_utilisateur> NOSUPERUSER;`.",
+    ReferencePages: "p.59-p.61",
+    Type: "configuration",
+    Categorie: "Identités et accès",
+    Commandes: "SELECT rolname FROM pg_roles WHERE rolsuper = true;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "4.3",
+    Titre: "Restreindre le privilège d'administration CREATEDB",
+    Description: "S'assurer que seuls les comptes légitimes peuvent créer des bases de données.",
+    Objectif: "Contrôler l'utilisation de l'espace disque et éviter que des environnements de test non audités soient déployés.",
+    Procédure: "Exécuter la requête : `SELECT rolname FROM pg_roles WHERE rolcreatedb = true;`",
+    ResultatAttendu: "Seuls les comptes d'administration documentés possèdent la valeur true.",
+    Severite: "High",
+    Remediation: "Retirer le privilège : `ALTER ROLE <nom_utilisateur> NOCREATEDB;`.",
+    ReferencePages: "p.62-p.63",
+    Type: "configuration",
+    Categorie: "Identités et accès",
+    Commandes: "SELECT rolname FROM pg_roles WHERE rolcreatedb = true;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "4.4",
+    Titre: "Restreindre le privilège d'administration CREATEROLE",
+    Description: "Restreindre la capacité à créer de nouveaux utilisateurs ou groupes de rôles.",
+    Objectif: "Éviter l'élévation de privilèges ou la création furtive de comptes secondaires par des utilisateurs intermédiaires.",
+    Procédure: "Exécuter la requête : `SELECT rolname FROM pg_roles WHERE rolcreaterole = true;`",
+    ResultatAttendu: "Seuls les comptes d'administration habilités sont listés.",
+    Severite: "High",
+    Remediation: "Retirer la permission : `ALTER ROLE <nom_utilisateur> NOCREATEROLE;`.",
+    ReferencePages: "p.64-p.65",
+    Type: "configuration",
+    Categorie: "Identités et accès",
+    Commandes: "SELECT rolname FROM pg_roles WHERE rolcreaterole = true;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "4.5",
+    Titre: "Restreindre le rôle technique REPLICATION",
+    Description: "Auditer les rôles possédant l'attribut de réplication réseau.",
+    Objectif: "Empêcher des attaquants d'initier un flux de réplication pour cloner la totalité des tables de la base de données.",
+    Procédure: "Exécuter la requête : `SELECT rolname FROM pg_roles WHERE rolreplication = true;`",
+    ResultatAttendu: "Seuls les rôles dédiés à la réplication technique (ex: replicator) sont retournés.",
+    Severite: "High",
+    Remediation: "Retirer le privilège de réplication : `ALTER ROLE <nom_utilisateur> NOREPLICATION;`.",
+    ReferencePages: "p.66-p.67",
+    Type: "configuration",
+    Categorie: "Identités et accès",
+    Commandes: "SELECT rolname FROM pg_roles WHERE rolreplication = true;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "4.6",
+    Titre: "Protéger la table système pg_authid des lectures publiques",
+    Description: "S'assurer que les empreintes cryptographiques des mots de passe ne sont pas lisibles par le public.",
+    Objectif: "Prévenir l'aspiration des hashs de mots de passe de la base de données pour tentatives de crack hors-ligne.",
+    Procédure: "Exécuter la commande SQL : `SELECT has_table_privilege('public', 'pg_authid', 'SELECT');`",
+    ResultatAttendu: "Le résultat doit retourner la valeur exacte 'false'.",
+    Severite: "High",
+    Remediation: "Révoquer tout droit de lecture hérité : `REVOKE SELECT ON pg_authid FROM public;`.",
+    ReferencePages: "p.68-p.69",
+    Type: "configuration",
+    Categorie: "Identités et accès",
+    Commandes: "SELECT has_table_privilege('public', 'pg_authid', 'SELECT');",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "4.7",
+    Titre: "Révoquer le privilège de création par défaut du rôle PUBLIC sur le schéma public",
+    Description: "Vérifier l'absence du droit d'écriture par défaut PUBLIC sur le schéma public de PostgreSQL 15.",
+    Objectif: "Éviter qu'un compte utilisateur sans privilège puisse créer ou modifier des objets perturbant la production.",
+    Procédure: "Exécuter : `SELECT has_schema_privilege('public', 'public', 'CREATE');`",
+    ResultatAttendu: "La valeur renvoyée doit être 'false'.",
+    Severite: "High",
+    Remediation: "Révoquer explicitement le droit de création : `REVOKE CREATE ON SCHEMA public FROM PUBLIC;`.",
+    ReferencePages: "p.70-p.72",
+    Type: "configuration",
+    Categorie: "Identités et accès",
+    Commandes: "REVOKE CREATE ON SCHEMA public FROM PUBLIC;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "4.8",
+    Titre: "Exiger un chiffrement fort des mots de passe (scram-sha-256)",
+    Description: "S'assurer que la méthode par défaut de cryptage de mot de passe est configurée sur `scram-sha-256`.",
+    Objectif: "Empêcher le stockage sous forme de hashs obsolètes de type MD5 sensibles au cassage rapide.",
+    Procédure: "Exécuter la commande SQL : `SHOW password_encryption;`",
+    ResultatAttendu: "La valeur renvoyée doit être exactement 'scram-sha-256'.",
+    Severite: "High",
+    Remediation: "Définir la variable système : `ALTER SYSTEM SET password_encryption = 'scram-sha-256';` puis recharger la configuration.",
+    ReferencePages: "p.73-p.74",
+    Type: "configuration",
+    Categorie: "Identités et accès",
+    Commandes: "SHOW password_encryption;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "4.9",
+    Titre: "Vérifier l'absence de hachages MD5 obsolètes dans pg_hba.conf",
+    Description: "S'assurer que les connexions réseau refusent l'authentification basée sur MD5 ou password en clair.",
+    Objectif: "Forcer la mise à niveau de tous les canaux de connexion vers la négociation sécurisée SCRAM.",
+    Procédure: "Exécuter : `SELECT * FROM pg_hba_file_rules WHERE auth_method IN ('password', 'md5');`",
+    ResultatAttendu: "La requête d'audit doit retourner 0 ligne.",
+    Severite: "Critical",
+    Remediation: "Modifier `pg_hba.conf` pour remplacer les références md5 par scram-sha-256 et recharger la configuration.",
+    ReferencePages: "p.75-p.77",
+    Type: "configuration",
+    Categorie: "Identités et accès",
+    Commandes: "SELECT * FROM pg_hba_file_rules WHERE auth_method IN ('password', 'md5');",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "4.10",
+    Titre: "Fermeture automatique des transactions inactives (idle_in_transaction_session_timeout)",
+    Description: "Interrompre automatiquement les connexions inactives détenant des transactions ouvertes.",
+    Objectif: "Prévenir l'épuisement de ressources de connexion et libérer les verrous exclusifs bloquants.",
+    Procédure: "Exécuter la commande SQL : `SHOW idle_in_transaction_session_timeout;`",
+    ResultatAttendu: "La valeur configurée doit être supérieure à 0 (ex : 300000 ms pour 5 minutes).",
+    Severite: "Medium",
+    Remediation: "Configurer le délai : `ALTER SYSTEM SET idle_in_transaction_session_timeout = '300000';` et recharger.",
+    ReferencePages: "p.78-p.79",
+    Type: "configuration",
+    Categorie: "Base de données",
+    Commandes: "SHOW idle_in_transaction_session_timeout;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "4.11",
+    Titre: "Fermeture automatique des sessions inactives globales (idle_session_timeout)",
+    Description: "Interrompre les sessions client inactives après un certain temps de non-activité.",
+    Objectif: "Prévenir l'encombrement du serveur de base de données par des connexions dormantes orphelines.",
+    Procédure: "Exécuter la commande SQL : `SHOW idle_session_timeout;`",
+    ResultatAttendu: "La valeur recommandée est supérieure à 0 (ex : 600000 ms pour 10 minutes).",
+    Severite: "Low",
+    Remediation: "Configurer le délai : `ALTER SYSTEM SET idle_session_timeout = '600000';` et recharger.",
+    ReferencePages: "p.79-p.80",
+    Type: "configuration",
+    Categorie: "Base de données",
+    Commandes: "SHOW idle_session_timeout;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "5.1",
+    Titre: "Activer le chiffrement SSL/TLS réseau (ssl)",
+    Description: "Garantir le chiffrement de toutes les données et jetons d'accès transitant entre le client et le serveur.",
+    Objectif: "Éviter l'écoute passive des transactions réseau ou l'interception de requêtes en clair.",
+    Procédure: "Exécuter la commande SQL : `SHOW ssl;`",
+    ResultatAttendu: "La valeur renvoyée doit être exactement 'on'.",
+    Severite: "High",
+    Remediation: "Configurer dans postgresql.conf : `ssl = on` (requiert la configuration des clés et certificats serveur) puis redémarrer.",
+    ReferencePages: "p.80-p.82",
+    Type: "configuration",
+    Categorie: "Réseau",
+    Commandes: "SHOW ssl;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "5.2",
+    Titre: "Définir la version minimale du protocole SSL (ssl_min_protocol_version)",
+    Description: "S'assurer de rejeter les protocoles cryptographiques obsolètes et non sécurisés.",
+    Objectif: "Bloquer les attaques de type rétrogradation de chiffrement (downgrade) qui exploitent les failles de TLSv1 ou TLSv1.1.",
+    Procédure: "Exécuter la commande SQL : `SHOW ssl_min_protocol_version;`",
+    ResultatAttendu: "La valeur recommandée est 'TLSv1.2' ou 'TLSv1.3'.",
+    Severite: "High",
+    Remediation: "Modifier la variable : `ALTER SYSTEM SET ssl_min_protocol_version = 'TLSv1.2';` puis redémarrer le serveur.",
+    ReferencePages: "p.83-p.84",
+    Type: "configuration",
+    Categorie: "Réseau",
+    Commandes: "SHOW ssl_min_protocol_version;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "5.3",
+    Titre: "Sécuriser les suites d'algorithmes de chiffrement (ssl_ciphers)",
+    Description: "Restreindre le choix des ciphers TLS négociés avec les clients à des suites fortes.",
+    Objectif: "Interdire l'utilisation d'algorithmes cryptographiques faibles ou compromis.",
+    Procédure: "Exécuter la commande SQL : `SHOW ssl_ciphers;`",
+    ResultatAttendu: "La suite configurée exclut les ciphers vulnérables (ex: HIGH:!aNULL:!3DES:!MD5).",
+    Severite: "Medium",
+    Remediation: "Configurer les ciphers : `ALTER SYSTEM SET ssl_ciphers = 'HIGH:!aNULL:!3DES:!MD5';` et redémarrer le serveur.",
+    ReferencePages: "p.85-p.86",
+    Type: "configuration",
+    Categorie: "Réseau",
+    Commandes: "SHOW ssl_ciphers;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "5.5",
+    Titre: "Exiger la connexion réseau chiffrée exclusive (hostssl)",
+    Description: "S'assurer de n'autoriser dans le fichier d'accès pg_hba.conf que des entrées sécurisées ssl.",
+    Objectif: "Bloquer toute tentative accidentelle de connexion cliente non sécurisée ou transitant en clair.",
+    Procédure: "Interroger le catalogue système : `SELECT * FROM pg_hba_file_rules WHERE type = 'host';`",
+    ResultatAttendu: "Aucune ligne ne doit être retournée, ce qui indique que seuls des hôtes de type hostssl sont autorisés.",
+    Severite: "High",
+    Remediation: "Éditer le fichier `pg_hba.conf` pour remplacer les règles réseau `host` par `hostssl` et recharger.",
+    ReferencePages: "p.87-p.88",
+    Type: "configuration",
+    Categorie: "Réseau",
+    Commandes: "SELECT * FROM pg_hba_file_rules WHERE type = 'host';",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "6.1",
+    Titre: "Restreindre l'interface réseau d'écoute (listen_addresses)",
+    Description: "Limiter l'écoute du service PostgreSQL aux interfaces réseau d'administration ou applicatives requises.",
+    Objectif: "Prévenir l'exposition aveugle et directe du port de base de données (5432) sur des réseaux publics.",
+    Procédure: "Exécuter la commande SQL : `SHOW listen_addresses;`",
+    ResultatAttendu: "La valeur ne doit pas être '*', sauf si un coupe-feu strict gère l'isolation réseau complète de la machine.",
+    Severite: "High",
+    Remediation: "Définir l'interface ou localhost : `ALTER SYSTEM SET listen_addresses = 'localhost';` (ou des adresses IP d'interfaces privées) puis redémarrer.",
+    ReferencePages: "p.89-p.91",
+    Type: "configuration",
+    Categorie: "Réseau",
+    Commandes: "SHOW listen_addresses;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "6.2",
+    Titre: "Ajuster la limite de connexions réseau (max_connections)",
+    Description: "Définir un nombre maximum de connexions clientes compatible avec les capacités de ressources physiques de la machine.",
+    Objectif: "Empêcher le déni de service par épuisement de la mémoire vive ou des descripteurs de processus.",
+    Procédure: "Exécuter : `SHOW max_connections;` et corréler avec les ressources CPU/RAM allouées.",
+    ResultatAttendu: "La valeur doit être cohérente avec les limites système (ex: typiquement 100 à 500 pour des déploiements standards).",
+    Severite: "Medium",
+    Remediation: "Configurer la valeur d'épuisement : `ALTER SYSTEM SET max_connections = 200;` (adapter) puis redémarrer le serveur.",
+    ReferencePages: "p.92-p.93",
+    Type: "configuration",
+    Categorie: "Base de données",
+    Commandes: "SHOW max_connections;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "7.1",
+    Titre: "Sécuriser les droits d'authentification de réplication",
+    Description: "S'assurer que les connexions destinées au mécanisme de réplication requièrent une méthode robuste.",
+    Objectif: "Empêcher la compromission globale de la base de données via l'injection de nœuds de réplication espions.",
+    Procédure: "Interroger les configurations actives : `SELECT * FROM pg_hba_file_rules WHERE database = 'replication';`",
+    ResultatAttendu: "Chaque ligne doit imposer une méthode sécurisée (scram-sha-256 ou cert).",
+    Severite: "High",
+    Remediation: "Configurer des hôtes de réplication avec scram-sha-256 dans `pg_hba.conf` et recharger.",
+    ReferencePages: "p.96-p.97",
+    Type: "configuration",
+    Categorie: "Identités et accès",
+    Commandes: "SELECT * FROM pg_hba_file_rules WHERE database = 'replication';",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "8.1",
+    Titre: "Activer et surveiller le démon de nettoyage autovacuum",
+    Description: "S'assurer que le service d'autovacuum est activé en permanence.",
+    Objectif: "Prévenir l'arrêt d'urgence du système dû au wraparound d'identifiants de transaction, et optimiser la réutilisation de l'espace.",
+    Procédure: "Exécuter la commande SQL : `SHOW autovacuum;`",
+    ResultatAttendu: "Le paramètre doit renvoyer la valeur exacte 'on'.",
+    Severite: "High",
+    Remediation: "Activer le démon dans postgresql.conf : `autovacuum = on`, puis redémarrer ou recharger.",
+    ReferencePages: "p.100-p.102",
+    Type: "configuration",
+    Categorie: "Base de données",
+    Commandes: "SHOW autovacuum;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "8.3",
+    Titre: "Activer la collecte des statistiques d'activité (track_activities)",
+    Description: "Vérifier que le collecteur d'activités en temps réel est activé sur le serveur.",
+    Objectif: "Permettre d'auditer et d'inspecter les requêtes en cours d'exécution pour repérer des anomalies ou requêtes suspectes.",
+    Procédure: "Exécuter : `SHOW track_activities;`",
+    ResultatAttendu: "La valeur renvoyée doit être exactement 'on'.",
+    Severite: "Medium",
+    Remediation: "Ajuster la variable système : `ALTER SYSTEM SET track_activities = 'on';` puis recharger.",
+    ReferencePages: "p.103-p.104",
+    Type: "configuration",
+    Categorie: "Base de données",
+    Commandes: "SHOW track_activities;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "8.4",
+    Titre: "Limiter l'allocation de tampons de tables temporaires (temp_buffers)",
+    Description: "Définir la mémoire vive maximum utilisable par session pour les objets temporaires.",
+    Objectif: "Prévenir le crash par dépassement global de mémoire (OOM) en limitant l'utilisation incontrôlée de tables temporaires.",
+    Procédure: "Exécuter la commande SQL : `SHOW temp_buffers;`",
+    ResultatAttendu: "La valeur doit respecter les limitations mémoires conseillées (ex: 8MB ou 16MB).",
+    Severite: "Low",
+    Remediation: "Configurer la mémoire : `ALTER SYSTEM SET temp_buffers = '8MB';` puis recharger la configuration.",
+    ReferencePages: "p.105-p.106",
+    Type: "configuration",
+    Categorie: "Base de données",
+    Commandes: "SHOW temp_buffers;",
+    Notes: "champ présent"
+  },
+  {
+    ControlId: "9.1",
+    Titre: "Définir une politique de sauvegarde régulière et auditer sa conformité",
+    Description: "Documenter les procédures de sauvegarde à froid ou à chaud (pg_dump, pg_basebackup) et planifier des exercices de restauration périodiques.",
+    Objectif: "Garantir la reprise d'activité de l'entreprise après un sinistre ou une attaque cryptographique.",
+    Procédure: "",
+    ResultatAttendu: "Présence d'un document opérationnel à jour décrivant le plan de reprise d'activité (PRA/PCA).",
+    Severite: "High",
+    Remediation: "Établir un protocole de tests de restauration trimestriel, enregistrer les taux de réussite, et faire valider par la direction.",
+    ReferencePages: "p.108",
+    Type: "documentation",
+    Categorie: "Organisationnel",
+    Commandes: "",
+    Notes: "[A VERIFIER] contrôle organisationnel; aucune commande technique PostgreSQL directe."
+  }
+];
+
+export const checklistByPageData: ChecklistItem[] = controlsData.map((ctrl) => ({
+  Page: ctrl.ReferencePages.split("-")[0],
+  ControlId: ctrl.ControlId,
+  LigneChecklist: `S'assurer de la conformité du contrôle "${ctrl.Titre}" selon les recommandations de la page ${ctrl.ReferencePages.split("-")[0]}.`,
+  Testable: ctrl.ControlId === "9.1" ? "N" : "Y"
+}));
+
+export const commandsData: CommandItem[] = controlsData
+  .filter((ctrl) => ctrl.Commandes !== "")
+  .map((ctrl) => {
+    const isShell = ctrl.Commandes.startsWith("ls") || ctrl.Commandes.includes("# Shell");
+    return {
+      ControlId: ctrl.ControlId,
+      CommandeSQL: isShell ? "" : ctrl.Commandes,
+      CommandeShell: isShell ? ctrl.Commandes : "",
+      Contexte: `Vérification de sécurité pour le contrôle ${ctrl.ControlId} : ${ctrl.Titre}`
+    };
+  });
+
+export const extractionLogs: LogItem[] = [
+  {
+    Step: "1",
+    Message: "Démarrage de l'analyse du PDF de référence CIS PostgreSQL 15 Benchmark v1.2.0.",
+    PageRange: "p.1-p.120",
+    Notes: "Fichier traité avec succès. Analyse sémantique effectuée."
+  },
+  {
+    Step: "2",
+    Message: "Extraction des contrôles des sections 1 et 2 (Mises à jour et Permissions de fichiers).",
+    PageRange: "p.12-p.24",
+    Notes: "5 contrôles identifiés. Traduction française et adaptation des commandes SQL."
+  },
+  {
+    Step: "3",
+    Message: "Traitement exhaustif de la Section 3 (Journalisation et Audit).",
+    PageRange: "p.25-p.55",
+    Notes: "14 contrôles extraits. Les configurations exactes ont été mappées aux variables système."
+  },
+  {
+    Step: "4",
+    Message: "Extraction de la Section 4 (Identités, Accès et Mots de passe).",
+    PageRange: "p.56-p.80",
+    Notes: "11 contrôles extraits. Contrôles critiques sur la méthode 'trust' et les privilèges de Superuser."
+  },
+  {
+    Step: "5",
+    Message: "Extraction des Sections 5, 6, 7 et 8 (Réseau, Configuration Serveur, Réplication et Maintenance).",
+    PageRange: "p.81-p.107",
+    Notes: "7 contrôles extraits. Validation des paramètres TLS, listen_addresses, et démon autovacuum."
+  },
+  {
+    Step: "6",
+    Message: "Ajout des contrôles organisationnels complémentaires.",
+    PageRange: "p.108",
+    Notes: "Intégration du contrôle organisationnel de sauvegarde 9.1 sans procédure automatisable (Marqué [A VERIFIER])."
+  }
+];
+
+export const summaryData = {
+  TotalControls: controlsData.length,
+  CriticalControls: controlsData.filter((c) => c.Severite === "Critical").length,
+  ControlsWithoutProcedure: controlsData.filter((c) => c.Procédure === "").length,
+  ExtractionDate: "2026-06-29T06:30:12-07:00"
+};
